@@ -1,0 +1,37 @@
+name: Wallet Follow
+
+on:
+  schedule:
+    - cron: '*/5 * * * *' # Her 5 dakikada bir çalışır
+  workflow_dispatch: # Manuel test edebilmek için
+
+permissions:
+  contents: write # durum.json dosyasını güncelleyebilmesi için şart
+
+jobs:
+  takip-et:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get Repository
+        uses: actions/checkout@v4
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Library
+        run: pip install requests
+
+      - name: Run Bot
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.CHAT_ID }}
+        run: python bot.py
+
+      - name: Save Latest Status
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add durum.json
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Durum guncellendi" && git push)
