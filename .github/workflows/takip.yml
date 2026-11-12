@@ -21,7 +21,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install Library
-        run: pip install requests
+        run: pip install requests curl_cffi
 
       - name: Run Bot
         env:
