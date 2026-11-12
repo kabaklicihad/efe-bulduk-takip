@@ -1,9 +1,9 @@
 import os
 import json
 import requests
-from curl_cffi import requests as cffi_requests
+from playwright.sync_api import sync_playwright
 
-API_URL = "https://test.kabaklicihad.workers.dev/"
+SAYFA_URL = "https://winningcircle.io"
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 CHAT_ID = os.environ.get("CHAT_ID")
 DURUM_DOSYASI = "durum.json"
@@ -16,36 +16,52 @@ def telegram_mesaj_gonder(mesaj):
 def pozisyon_anahtari(pos):
     return f"{pos['account']}_{pos['instId']}_{pos['side']}"
 
-def kontrol_et():
-    headers = {
-        "Accept": "application/json, text/plain, */*",
-        "Accept-Language": "tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7",
-        "Referer": "https://winningcircle.io",
-        "Origin": "https://winningcircle.io"
-    }
+def api_verisini_cek():
+    yakalanan_veri = None
 
-    try:
-        # Gerçek bir Chrome tarayıcısı gibi istek atar (Cloudflare engelini aşar)
-        response = cffi_requests.get(
-            API_URL,
-            headers=headers,
-            impersonate="chrome120",
-            timeout=15
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        context = browser.new_context(
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            viewport={"width": 1280, "height": 720}
         )
-        
-        if response.status_code != 200:
-            print(f"API HTTP Hatası: {response.status_code} - Yanıt: {response.text[:200]}")
-            return
-            
-        data = response.json()
-    except Exception as e:
-        print(f"Veri çekme veya JSON hatası: {e}")
+        page = context.new_page()
+
+        # Arka plandaki ağ yanıtlarını dinle
+        def handle_response(response):
+            nonlocal yakalanan_veri
+            if "api/efe-yolda/okx" in response.url and response.status == 200:
+                try:
+                    yakalanan_veri = response.json()
+                except Exception as e:
+                    print(f"JSON ayrıştırma hatası: {e}")
+
+        page.on("response", handle_response)
+
+        try:
+            print("Sayfa açılıyor...")
+            page.goto(SAYFA_URL, wait_until="networkidle", timeout=30000)
+            # API isteğinin tamamlanması için kısa bir ek bekleme
+            page.wait_for_timeout(4000)
+        except Exception as e:
+            print(f"Sayfa yükleme uyarısı: {e}")
+        finally:
+            browser.close()
+
+    return yakalanan_veri
+
+def kontrol_et():
+    data = api_verisini_cek()
+
+    if not data:
+        print("API verisi yakalanamadı! Site GitHub IP'sine sayfayı açmamış olabilir.")
         return
 
     if not data.get("ok"):
         print("API 'ok: false' döndürdü.")
         return
 
+    print("Veri başarıyla yakalandı!")
     mevcut_pozisyonlar = {pozisyon_anahtari(p): p for p in data.get("positions", [])}
     mevcut_gecmis = data.get("history", [])
 
@@ -61,7 +77,7 @@ def kontrol_et():
         ilk_calisma = True
 
     if ilk_calisma:
-        telegram_mesaj_gonder("🤖 <b>GitHub Actions Takip Sistemi Başlatıldı!</b>")
+        telegram_mesaj_gonder("🤖 <b>GitHub Actions (Playwright) Takip Sistemi Başlatıldı!</b>")
     else:
         # 1. Yeni açılan veya miktarı değişen pozisyonlar
         for anahtar, pos in mevcut_pozisyonlar.items():
