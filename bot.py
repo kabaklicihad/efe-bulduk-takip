@@ -1,6 +1,7 @@
 import os
 import json
 import requests
+from curl_cffi import requests as cffi_requests
 
 API_URL = "https://winningcircle.io"
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
@@ -16,17 +17,38 @@ def pozisyon_anahtari(pos):
     return f"{pos['account']}_{pos['instId']}_{pos['side']}"
 
 def kontrol_et():
-    headers = {"User-Agent": "Mozilla/5.0"}
-    response = requests.get(API_URL, headers=headers, timeout=15)
-    data = response.json()
+    headers = {
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Referer": "https://winningcircle.io",
+        "Origin": "https://winningcircle.io"
+    }
+
+    try:
+        # Gerçek bir Chrome tarayıcısı gibi istek atar (Cloudflare engelini aşar)
+        response = cffi_requests.get(
+            API_URL,
+            headers=headers,
+            impersonate="chrome120",
+            timeout=15
+        )
+        
+        if response.status_code != 200:
+            print(f"API HTTP Hatası: {response.status_code} - Yanıt: {response.text[:200]}")
+            return
+            
+        data = response.json()
+    except Exception as e:
+        print(f"Veri çekme veya JSON hatası: {e}")
+        return
 
     if not data.get("ok"):
+        print("API 'ok: false' döndürdü.")
         return
 
     mevcut_pozisyonlar = {pozisyon_anahtari(p): p for p in data.get("positions", [])}
     mevcut_gecmis = data.get("history", [])
 
-    # Önceki durumu dosyadan oku
     if os.path.exists(DURUM_DOSYASI):
         with open(DURUM_DOSYASI, "r", encoding="utf-8") as f:
             eski_durum = json.load(f)
@@ -81,7 +103,6 @@ def kontrol_et():
                 )
                 telegram_mesaj_gonder(mesaj)
 
-    # Yeni durumu dosyaya kaydet
     yeni_durum = {
         "positions": mevcut_pozisyonlar,
         "history_ids": [item["id"] for item in mevcut_gecmis]
