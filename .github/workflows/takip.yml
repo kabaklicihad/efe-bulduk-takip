@@ -31,7 +31,11 @@ jobs:
 
       - name: Save Latest Status
         run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git add durum.json
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Durum guncellendi" && git push)
+          if [ -f durum.json ]; then
+            git config --local user.email "action@github.com"
+            git config --local user.name "GitHub Action"
+            git add durum.json
+            git diff --quiet && git diff --staged --quiet || (git commit -m "Durum guncellendi" && git push)
+          else
+            echo "durum.json henuz olusturulmadi, atlanıyor."
+          fi
