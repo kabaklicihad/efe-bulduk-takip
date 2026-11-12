@@ -3,7 +3,7 @@ import json
 import requests
 from curl_cffi import requests as cffi_requests
 
-API_URL = "https://winningcircle.io"
+API_URL = "https://test.kabaklicihad.workers.dev/"
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 CHAT_ID = os.environ.get("CHAT_ID")
 DURUM_DOSYASI = "durum.json"
